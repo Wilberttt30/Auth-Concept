@@ -3,6 +3,7 @@ const dotenv = require('dotenv')
 const jwt = require('jsonwebtoken')
 const cookieParser = require('cookie-parser')
 const { PrismaClient } = require('@prisma/client')
+const { log } = require('console')
 
 const app = express()
 const prisma = new PrismaClient()
@@ -13,10 +14,6 @@ const secretKey = 'abc123'
 
 app.use(express.json())
 app.use(cookieParser())
-
-app.get('/', (req, res) => {
-    res.send('Hi')
-})
 
 app.post('/register', async (req, res) => {
     const username = req.body.username
@@ -30,8 +27,9 @@ app.post('/register', async (req, res) => {
             password: password
         }
     })
+    console.log(register)
 
-    res.status(201).json({msg: 'Successfully Created', account: register})
+    res.status(201).json({msg: 'Registration Sucessful', account: register})
 })
 
 app.post('/login', async (req, res) => {
@@ -40,54 +38,62 @@ app.post('/login', async (req, res) => {
 
     if (username == "" || password == "") return res.json({err: 'Field must be filled!'})
 
-    const login = await prisma.register.findMany({
+    const login = await prisma.register.findFirst({
         where: {
-            username: username,
-            password: password
+            username: username
         }
     })
 
-    if (login.length == 0) return res.json({err: 'ID Not Found'})
+    if (login == null) return res.json({err: 'ID Not Found'})
 
-    const loginID = login[0].id
-    const loginPassword = login[0].password
+    const loginID = login.id
+    const loginUsername = login.username
+    const loginPassword = login.password
 
-    if (password !== loginPassword) return res.json({err: 'Wrong Password'})
+    if (username !== loginUsername) return res.json({message: 'Invalid Username'})
+    if (password !== loginPassword) return res.json({message: 'Wrong Password'})
 
-    const tokenValue = jwt.sign(loginID, secretKey)
-    res.cookie('token', tokenValue, {
-        httpOnly: true
+
+    // Generate Token
+    const tokenValue = jwt.sign({ id: loginID }, secretKey, { expiresIn: '1h' })
+    console.log(tokenValue)
+
+    res.cookie('cookie', tokenValue, {
+        httpOnly: true,
+        expires: new Date(Date.now() + 3600000)
     })
-    res.send('Cookie Set')
+
+    res.status(201).json({message: 'Cookie Generated'})
 })
 
 app.post('/login2', (req, res) => {
     const cookies = req.cookies
-    res.send(cookies)
+    if (!cookies) return res.status(404).json({message: 'Cookies Not Found!'})
+    res.status(200).json({ message: 'Get Token Success' })
 })
 
 app.get('/protected', async (req, res) => {
-    try {
-        console.log(req.cookies.token)
-        const verified = jwt.verify(req.cookies.token, secretKey);
-        
-        if (verified) {
-            const user = await prisma.register.findUnique({
-                where: { id: parseInt(verified) },
-                select: { id: true, username: true, createdAt: true }
-            })
-            res.send(user)
+    const cookie = req.cookies.cookie
+    var decoded = jwt.verify(cookie, secretKey)
+    if (!decoded.id) return res.status(404).json({message: 'Authenthication Invalid!'})
+    const user = await prisma.register.findUnique({
+        where: {
+            id: decoded.id
         }
-    } catch (error) {
-        return res.json({err: 'Authenthication is invalid!'});
-    }
+    })
+    res.status(200).json({message: 'Authenthication Sucess'})
 })
 
 app.get('/protected2', (req, res) => {
     const headersToken = req.headers.authorization
+    const headersCookie = req.headers.cookie
+
     const token = headersToken.split(" ")[1]
+    const cookie = headersCookie.split("=")[1]
+
+    if (token !== cookie) return res.status(401).json({message: 'Invalid Authentication!'})
     
-    res.send(token)
+    res.status(202).json({message: 'User Authenthication'})
 })
 
 app.listen(3000, (err) => {
