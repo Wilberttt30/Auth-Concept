@@ -3,13 +3,9 @@ const dotenv = require('dotenv')
 const jwt = require('jsonwebtoken')
 const cookieParser = require('cookie-parser')
 const { PrismaClient } = require('@prisma/client')
-const { log } = require('console')
-const { verify } = require('crypto')
 
 const app = express()
 const prisma = new PrismaClient()
-
-dotenv.config()
 
 const secretKey = 'abc123'
 
@@ -81,11 +77,8 @@ app.post('/login2', async (req, res) => {
 
     if (login == null) return res.json({err: 'ID Not Found'})
     const loginID = login.id
-    const loginUsername = login.username
     const loginPassword = login.password
 
-
-    if (username !== loginUsername) return res.json({message: 'Invalid Username'})
     if (password !== loginPassword) return res.json({message: 'Wrong Password'})
 
     // Generate Token
@@ -97,7 +90,6 @@ app.post('/login2', async (req, res) => {
 app.get('/protected', async (req, res) => {
     try {
         const cookie = req.cookies.cookie
-        if (cookie !== req.cookies.cookie) return res.json({message: 'Authenthication Invalid!'})
         var decoded = jwt.verify(cookie, secretKey)
         const user = await prisma.register.findUnique({
             where: {
@@ -107,7 +99,7 @@ app.get('/protected', async (req, res) => {
         console.log(user)
         res.status(200).json({message: 'Authenthication Sucess'})
     } catch (error) {
-        res.json({message: error})
+        res.json({message: 'You are not authentitaced!'})
     }
 })
 
@@ -116,7 +108,6 @@ app.get('/protected2', (req, res) => {
         const headersToken = req.headers.authorization
         const token = headersToken.split(" ")[1]
     
-        if (!headersToken) return res.status(401).json({message: 'Invalid Authentication!'})
         jwt.verify(token, secretKey)
     
         res.status(202).json({message: 'User Authenthication'})
